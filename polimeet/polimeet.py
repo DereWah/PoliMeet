@@ -544,9 +544,9 @@ async def try_match(user: types.User, message: types.Message):
 			"reported": False
 		}
 		
+		storage["searching"].remove(matched_id)
 		await match(user, matched, convo)
 		await match(matched, user, convo)
-		storage["searching"].remove(matched_id)
 		
 async def match(user, matched, convo):
 	set_status(user, f"matched.{convo}")
