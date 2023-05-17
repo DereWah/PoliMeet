@@ -292,6 +292,7 @@ def save_user(user):
 			"last_inline": None,
 			"stopped": False,
 			"interests": None,
+			"banned": False
 		}
 		storage["users"][f"{user.id}"] = user_dic
 		save_storage()
@@ -370,7 +371,13 @@ def language_keyboard():
 	
 	return(types.InlineKeyboardMarkup(kb))
 
-
+def is_banned(user):
+	if not is_new_user(user):
+		if((list(storage["users"][f"{user.id}"].keys())).count("banned") == 0):
+			storage["users"][f"{user.id}"]["banned"] = False
+		return storage["users"][f"{user.id}"]["banned"]
+	else:
+		return False
 
 async def stat_plot(userid):
 	figure, grafico = plt.subplots()
@@ -478,7 +485,26 @@ async def send_stats(client, message):
 		
 		await message.reply(f"👥 Total users: {total}\n🚫 Blocked: {stopped}\n✅ Active: {total-stopped}")	
 		
-		
+@app.on_message(filters.command("ban"))
+async def ban_user(client, message):
+	user = message.from_user
+	if user.id in admins:
+		if (len(message.command) == 2):
+			try:
+				target = await app.get_users(message.command[1])
+				if is_new_user(target):
+					save_user(target)	
+				storage["users"][f"{target.id}"]["banned"] = not is_banned(target)
+				un = ""
+				if(is_banned(target) == False):
+					un = "un"
+				await notify_admins(f"{target.mention} has been {un}banned by {user.mention}.")
+			except Exception as e:
+				print(f"User {message.command[1]} not found. {e}")
+				await message.reply(f"User not found. {e}")
+		else:
+			await message.reply("Specify the ID or the mention of the user to ban.")	
+	
 async def switch_lang(user: types.User, message: types.Message):
 	inline_keyboard = language_keyboard()
 	await message.edit_text(t(m["change_lang"].format(get_lang(user)), get_lang(user)), reply_markup=inline_keyboard)
@@ -681,7 +707,9 @@ async def send_start(client, message):
 			storage["stats"][ref] += 1
 
 	await notify_admins(f"User {user.mention} started the bot with ref {ref}.")
-	
+	if(is_banned(user)):
+		await message.reply(t("❌ You are banned from using this bot.\n\n🫂 If you wish to contact support, use @PoliMeetSupportBot", get_lang(user)))
+		return
 	if maintenance == True:
 		await message.reply("Hi Guys we’re sorry but the bot will need some maintenance, we we’ll notify you as soon as it works again 🫶🏻 lots of love")
 	else:
@@ -775,6 +803,8 @@ async def on_message(client, message):
 	else:
 		user = message.from_user
 		status = get_status(user)
+		if(is_banned(user)):
+			return
 		if "matched" in status:
 			convo = status.split(".")[1]
 			matched = get_matched(user)
@@ -803,6 +833,8 @@ async def query_handler(client, call):
 	user = call.from_user
 	status = get_status(user)
 	msg = call.message
+	if(is_banned(user)):
+		return
 	if call.data == "new_chat":
 		await try_match(user, call.message)
 	elif call.data == "cancel":
